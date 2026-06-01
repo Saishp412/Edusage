@@ -40,3 +40,4 @@ npm-debug.log*
 
 # Misc build info
 edusage-frontend/tsconfig.tsbuildinfo
+tsconfig.tsbuildinfo
