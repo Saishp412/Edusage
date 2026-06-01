@@ -51,7 +51,7 @@ export default function Home() {
       setIsScrolled(scrollPosition > 50);
     };
     
-    const handleMouseMove = (e) => {
+    const handleMouseMove = (e: MouseEvent) => {
       setMousePosition({ x: e.clientX, y: e.clientY });
     };
     
