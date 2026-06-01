@@ -1,46 +1,16 @@
 services:
-  # 1. Embeddings Server (Private Service)
-  - type: pserv
-    name: edusage-embeddings
-    env: docker
-    rootDir: edusage-embeddings
-    dockerfilePath: Dockerfile
-    plan: starter # Starter plan recommended for RAM requirements
-    envVars:
-      - key: PORT
-        value: 8001
-
-  # 2. ChromaDB (Private Service with Persistent Disk)
-  - type: pserv
-    name: edusage-chromadb
-    env: docker
-    rootDir: chromadb
-    dockerfilePath: Dockerfile
-    plan: starter
-    disk:
-      name: chromadb-data
-      mountPath: /chroma/chroma
-      sizeGB: 5
-    envVars:
-      - key: IS_PERSISTENT
-        value: "TRUE"
-
-  # 3. Backend API (Web Service)
+  # Single Web Service — Node.js backend
+  # ChromaDB and local embedding server are no longer needed.
+  # Vectors are stored in MongoDB Atlas, embeddings via OpenAI API.
   - type: web
     name: edusage-backend
     env: docker
     rootDir: edusage-backend
     dockerfilePath: Dockerfile
-    plan: free # Can start with free, upgrade if PyMuPDF/Node needs more RAM
+    plan: free
     envVars:
-      # Use internal Render hostnames for communication
-      - key: CHROMA_URL
-        value: "http://edusage-chromadb:8000"
-      - key: EMBEDDING_SERVICE_URL
-        value: "http://edusage-embeddings:8001"
-      # Sync other variables from Render Dashboard
       - key: MONGO_URI
-        sync: false
+        sync: false           # fill in Render dashboard
       - key: JWT_SECRET
         sync: false
       - key: OPENAI_API_KEY
@@ -49,6 +19,4 @@ services:
         sync: false
       - key: GOOGLE_SEARCH_ENGINE_ID
         sync: false
-    
-    # Expose the API to frontend
     healthCheckPath: /

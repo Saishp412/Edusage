@@ -1,6 +1,6 @@
 FROM node:18-bullseye
 
-# Install Python and dependencies for PyMuPDF
+# Install Python and system deps required for PyMuPDF image extraction
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
@@ -9,22 +9,20 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Install Python dependencies from requirements.txt
+# Install Python dependencies (PyMuPDF for PDF image extraction)
 COPY requirements.txt ./
-# For Debian bullseye, pip sometimes warns about root, we use --no-cache-dir
-RUN pip3 install --no-cache-dir -r requirements.txt || pip3 install --no-cache-dir fitz==1.23.26 Pillow==10.4.0 PyMuPDF==1.23.26
+RUN pip3 install --no-cache-dir -r requirements.txt
 
-# Copy node config
+# Install Node.js dependencies
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --omit=dev
 
-# Copy the rest of the application
+# Copy application source
 COPY . .
 
-# Create uploads directory
+# Create uploads directory for diagrams
 RUN mkdir -p uploads/diagrams
 
 EXPOSE 5000
 
-# Using npm start which points to node server.js
-CMD ["npm", "start"]
+CMD ["node", "server.js"]
