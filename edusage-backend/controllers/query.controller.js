@@ -24,27 +24,7 @@ exports.askQuestion = async (req, res) => {
   }
 
   try {
-    // Try topic-based processing first, fallback to original if it fails
-    console.log(`[RAG] Attempting topic-based processing...`);
-    
-    try {
-      const topicProcessor = new TopicDocumentProcessor();
-      const topicResult = await topicProcessor.queryWithTopicAwareness(question, notebookId, 6);
-      
-      if (topicResult && topicResult.documents && topicResult.documents.length > 0) {
-        console.log(`[RAG] ✅ Topic-based processing successful! Found ${topicResult.documents.length} results`);
-        
-        // Use topic-based results for the rest of the processing
-        return await processQueryResults(req, res, topicResult, question, notebookId);
-      }
-    } catch (topicError) {
-      console.log(`[RAG] Topic-based processing failed, falling back to original system:`, topicError.message);
-    }
-
-    // Original system as fallback
-    console.log(`[RAG] Using original processing system...`);
     return await processOriginalQuery(req, res, question, notebookId);
-
   } catch (error) {
     console.error(`[RAG ERROR] Query processing failed:`, error);
     res.status(500).json({

@@ -1,173 +1,171 @@
 /**
  * vectorStore.service.js
  *
- * A drop-in adapter that replaces ChromaDB with MongoDB Atlas Vector Search.
- * Exposes the same API surface that chroma.client.js used to expose:
- *   - getOrCreateCollection({ name })
- *   - getCollection({ name })
- *   - deleteCollection({ name })
+ * Drop-in MongoDB replacement for ChromaDB.
+ * Uses JS cosine similarity as the primary search method (reliable, zero config).
+ * If a MongoDB Atlas Vector Search index named "vector_index" exists on the
+ * "vectorchunks" collection, it will be used automatically for faster search.
  *
- * Each "collection" is a VectorCollection instance that exposes:
- *   - add({ ids, documents, embeddings, metadatas })
- *   - query({ queryEmbeddings, nResults, where })
- *   - get({ where })
- *   - delete() (deletes all docs in the collection)
- *
- * MongoDB schema per document:
- *   { _id, collectionName, chunkId, text, embedding: [float], metadata: {} }
- *
- * Atlas Vector Search index (must be created once in Atlas UI):
- *   Collection: edusage.vectorchunks
- *   Field: embedding
- *   Dimensions: 1536 (matches text-embedding-3-small)
- *   Similarity: cosine
+ * Schema: { collectionName, chunkId, text, embedding: [float], metadata: {} }
  */
 
 const mongoose = require("mongoose");
 const embedText = require("./embedding.service");
 
-/* ───────────────── Mongoose Schema ───────────────── */
-const chunkSchema = new mongoose.Schema({
-  collectionName: { type: String, required: true, index: true },
-  chunkId:        { type: String, required: true },
-  text:           { type: String, required: true },
-  embedding:      { type: [Number], required: true },
-  metadata:       { type: mongoose.Schema.Types.Mixed, default: {} }
-}, { timestamps: true });
+/* ─────────────── Mongoose Schema ─────────────── */
+const chunkSchema = new mongoose.Schema(
+  {
+    collectionName: { type: String, required: true, index: true },
+    chunkId:        { type: String, required: true },
+    text:           { type: String, required: true },
+    embedding:      { type: [Number], required: true },
+    metadata:       { type: mongoose.Schema.Types.Mixed, default: {} }
+  },
+  { timestamps: true }
+);
 
-// Compound index for fast per-collection lookups
 chunkSchema.index({ collectionName: 1, chunkId: 1 }, { unique: true });
 
-const VectorChunk = mongoose.models.VectorChunk
-  || mongoose.model("VectorChunk", chunkSchema);
+const VectorChunk =
+  mongoose.models.VectorChunk || mongoose.model("VectorChunk", chunkSchema);
 
-/* ───────────────── Collection Class ───────────────── */
+/* ─────────────── Cosine Similarity ─────────────── */
+function cosineSimilarity(a, b) {
+  if (!a || !b || a.length !== b.length) return 0;
+  let dot = 0, magA = 0, magB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot  += a[i] * b[i];
+    magA += a[i] * a[i];
+    magB += b[i] * b[i];
+  }
+  return magA === 0 || magB === 0 ? 0 : dot / (Math.sqrt(magA) * Math.sqrt(magB));
+}
+
+/* ─────────────── VectorCollection Class ─────────────── */
 class VectorCollection {
   constructor(name) {
     this.name = name;
   }
 
   /**
-   * Add chunks to the collection.
-   * ChromaDB signature: add({ ids, documents, embeddings, metadatas })
+   * Store chunks.
+   * ChromaDB signature: add({ ids, documents, embeddings?, metadatas? })
+   * If embeddings are not provided, they are generated via OpenAI.
    */
   async add({ ids, documents, embeddings, metadatas }) {
+    // Auto-generate embeddings if not provided
+    let vecs = embeddings;
+    if (!vecs || vecs.length === 0 || vecs[0] === undefined) {
+      console.log(`[VectorStore] Auto-generating embeddings for ${ids.length} chunks in "${this.name}"`);
+      vecs = await embedText(documents);
+    }
+
     const ops = ids.map((id, i) => ({
       updateOne: {
         filter: { collectionName: this.name, chunkId: id },
         update: {
           $set: {
             collectionName: this.name,
-            chunkId: id,
-            text: documents[i],
-            embedding: embeddings[i],
-            metadata: metadatas ? metadatas[i] : {}
+            chunkId:        id,
+            text:           documents[i],
+            embedding:      vecs[i] || [],
+            metadata:       metadatas ? (metadatas[i] || {}) : {}
           }
         },
         upsert: true
       }
     }));
+
     await VectorChunk.bulkWrite(ops);
+    console.log(`[VectorStore] Stored ${ids.length} chunks in collection "${this.name}"`);
   }
 
   /**
-   * Vector similarity search.
-   * ChromaDB signature: query({ queryEmbeddings, nResults, where })
-   * Returns: { documents: [[...]], metadatas: [[...]], distances: [[...]] }
+   * Semantic similarity search.
+   * ChromaDB signature: query({ queryEmbeddings, nResults, where? })
+   * Returns: { documents: [[]], metadatas: [[]], distances: [[]] }
    */
   async query({ queryEmbeddings, nResults = 10, where }) {
     const queryVector = queryEmbeddings[0];
 
-    // Build aggregation pipeline using Atlas $vectorSearch
-    const pipeline = [
-      {
-        $vectorSearch: {
-          index: "vector_index",
-          path: "embedding",
-          queryVector: queryVector,
-          numCandidates: Math.max(nResults * 10, 100),
-          limit: nResults,
-          filter: this._buildAtlasFilter(where)
-        }
-      },
-      {
-        $project: {
-          _id: 0,
-          chunkId: 1,
-          text: 1,
-          metadata: 1,
-          score: { $meta: "vectorSearchScore" }
-        }
+    // ── Try Atlas $vectorSearch first (fast, requires Atlas M10+ with index) ──
+    try {
+      const pipeline = [
+        {
+          $vectorSearch: {
+            index:         "vector_index",
+            path:          "embedding",
+            queryVector:   queryVector,
+            numCandidates: Math.max(nResults * 20, 200),
+            limit:         Math.max(nResults * 4, 40) // over-fetch to allow post-filter
+          }
+        },
+        {
+          $match: { collectionName: this.name }  // filter after $vectorSearch
+        },
+        {
+          $project: {
+            _id:      0,
+            chunkId:  1,
+            text:     1,
+            metadata: 1,
+            score:    { $meta: "vectorSearchScore" }
+          }
+        },
+        { $limit: nResults }
+      ];
+
+      const atlasResults = await VectorChunk.aggregate(pipeline);
+
+      if (atlasResults && atlasResults.length > 0) {
+        console.log(`[VectorStore] Atlas vector search: ${atlasResults.length} results`);
+        let results = atlasResults;
+        if (where) results = results.filter(r => this._matchesWhere(r.metadata, where));
+        return this._format(results.slice(0, nResults));
       }
-    ];
-
-    // Remove undefined filter
-    if (!pipeline[0].$vectorSearch.filter) {
-      delete pipeline[0].$vectorSearch.filter;
+    } catch (_err) {
+      // Atlas index not set up yet — fall through to JS cosine similarity
     }
 
-    // Pre-filter by collectionName using $match before vector search
-    // Atlas $vectorSearch filter only supports simple equality on indexed scalar fields
-    // So we filter post-query by collectionName (or use pre-filter if you've indexed collectionName)
-    const allInCollection = await VectorChunk.aggregate([
-      { $match: { collectionName: this.name } },
-      {
-        $vectorSearch: {
-          index: "vector_index",
-          path: "embedding",
-          queryVector: queryVector,
-          numCandidates: Math.max(nResults * 10, 100),
-          limit: nResults
-        }
-      },
-      {
-        $project: {
-          _id: 0,
-          chunkId: 1,
-          text: 1,
-          metadata: 1,
-          score: { $meta: "vectorSearchScore" }
-        }
-      }
-    ]).catch(() => []);
-
-    // Fallback: if $vectorSearch is not available (e.g., Atlas Free M0 without vector search),
-    // do a keyword-based cosine similarity in JS
-    let results = allInCollection;
-    if (results.length === 0) {
-      results = await this._fallbackCosineSimilarity(queryVector, nResults, where);
+    // ── JS cosine similarity fallback (always works) ──
+    const filter = { collectionName: this.name };
+    if (where) {
+      Object.entries(where).forEach(([k, v]) => {
+        filter[`metadata.${k}`] = v;
+      });
     }
 
-    // Apply 'where' metadata filter post-query
-    if (where && Object.keys(where).length > 0) {
-      results = results.filter(r => this._matchesFilter(r.metadata, where));
-    }
+    const allDocs = await VectorChunk.find(filter).lean();
+    console.log(`[VectorStore] Cosine search across ${allDocs.length} chunks in "${this.name}"`);
 
-    // Limit to nResults
-    results = results.slice(0, nResults);
+    const scored = allDocs
+      .map(doc => ({
+        chunkId:  doc.chunkId,
+        text:     doc.text,
+        metadata: doc.metadata,
+        score:    cosineSimilarity(queryVector, doc.embedding)
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, nResults);
 
-    return {
-      documents: [results.map(r => r.text)],
-      metadatas: [results.map(r => r.metadata)],
-      distances: [results.map(r => 1 - (r.score || 0))] // convert similarity → distance
-    };
+    return this._format(scored);
   }
 
   /**
-   * Get chunks by metadata filter.
-   * ChromaDB signature: get({ where })
+   * Fetch chunks by metadata filter.
+   * ChromaDB signature: get({ where? })
    * Returns: { ids, documents, metadatas }
    */
   async get({ where } = {}) {
     const filter = { collectionName: this.name };
     if (where) {
-      Object.entries(where).forEach(([key, value]) => {
-        filter[`metadata.${key}`] = value;
+      Object.entries(where).forEach(([k, v]) => {
+        filter[`metadata.${k}`] = v;
       });
     }
     const docs = await VectorChunk.find(filter).lean();
     return {
-      ids: docs.map(d => d.chunkId),
+      ids:       docs.map(d => d.chunkId),
       documents: docs.map(d => d.text),
       metadatas: docs.map(d => d.metadata)
     };
@@ -177,68 +175,31 @@ class VectorCollection {
    * Delete all chunks in this collection.
    */
   async delete() {
-    await VectorChunk.deleteMany({ collectionName: this.name });
+    const { deletedCount } = await VectorChunk.deleteMany({ collectionName: this.name });
+    console.log(`[VectorStore] Deleted ${deletedCount} chunks from "${this.name}"`);
   }
 
   /* ── Private helpers ── */
-
-  _buildAtlasFilter(where) {
-    if (!where || Object.keys(where).length === 0) return undefined;
-    // Atlas Vector Search filter supports simple equality on pre-indexed fields
-    // For simplicity, we handle post-query in JS (see query() above)
-    return undefined;
+  _matchesWhere(metadata, where) {
+    return Object.entries(where).every(([k, v]) => metadata && metadata[k] === v);
   }
 
-  _matchesFilter(metadata, where) {
-    return Object.entries(where).every(([key, value]) => {
-      return metadata && metadata[key] === value;
-    });
-  }
-
-  /**
-   * Pure-JS cosine similarity fallback when Atlas Vector Search index isn't set up yet.
-   * This is slower but works immediately without any Atlas configuration.
-   */
-  async _fallbackCosineSimilarity(queryVector, nResults, where) {
-    const filter = { collectionName: this.name };
-    if (where) {
-      Object.entries(where).forEach(([key, value]) => {
-        filter[`metadata.${key}`] = value;
-      });
-    }
-    const allDocs = await VectorChunk.find(filter).lean();
-
-    const scored = allDocs.map(doc => ({
-      chunkId: doc.chunkId,
-      text: doc.text,
-      metadata: doc.metadata,
-      score: cosineSimilarity(queryVector, doc.embedding)
-    }));
-
-    scored.sort((a, b) => b.score - a.score);
-    return scored.slice(0, nResults);
+  _format(results) {
+    return {
+      documents: [results.map(r => r.text)],
+      metadatas: [results.map(r => r.metadata)],
+      distances: [results.map(r => 1 - (r.score || 0))]
+    };
   }
 }
 
-/* ───────────────── Cosine Similarity ───────────────── */
-function cosineSimilarity(vecA, vecB) {
-  if (!vecA || !vecB || vecA.length !== vecB.length) return 0;
-  let dot = 0, magA = 0, magB = 0;
-  for (let i = 0; i < vecA.length; i++) {
-    dot += vecA[i] * vecB[i];
-    magA += vecA[i] * vecA[i];
-    magB += vecB[i] * vecB[i];
-  }
-  if (magA === 0 || magB === 0) return 0;
-  return dot / (Math.sqrt(magA) * Math.sqrt(magB));
-}
-
-/* ───────────────── Public API ───────────────── */
+/* ─────────────── Public API ─────────────── */
 module.exports = {
   getOrCreateCollection: async ({ name }) => new VectorCollection(name),
   getCollection:         async ({ name }) => new VectorCollection(name),
   deleteCollection:      async ({ name }) => {
     await VectorChunk.deleteMany({ collectionName: name });
+    console.log(`[VectorStore] Deleted collection "${name}"`);
   },
   listCollections: async () => {
     const names = await VectorChunk.distinct("collectionName");
