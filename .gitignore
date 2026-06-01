@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+edusage-frontend/node_modules/
+edusage-backend/node_modules/
+
+# Python
+edusage-embeddings/venv/
+__pycache__/
+*.pyc
+
+# Environment variables (NEVER push secrets)
+.env
+.env.local
+.env.production
+
+# Build outputs
+edusage-frontend/.next/
+edusage-frontend/out/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+
+# Uploads (user data, not code)
+edusage-backend/uploads/
+
+# ChromaDB local data
+chroma_db/
+edusage-backend/chroma_db/
+edusage-backend/chroma/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Misc build info
+edusage-frontend/tsconfig.tsbuildinfo

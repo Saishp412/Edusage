@@ -1,0 +1,3 @@
+# PyMuPDF-based PDF image extraction dependencies
+fitz==1.23.26
+Pillow==10.4.0
