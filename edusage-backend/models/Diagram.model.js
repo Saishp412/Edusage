@@ -26,7 +26,11 @@ const DiagramSchema = new mongoose.Schema(
     },
     imagePath: {
       type: String,
-      required: true,
+      default: ''
+    },
+    imageData: {
+      type: String,  // base64 encoded PNG — stored in MongoDB, no disk needed
+      default: ''
     },
     boundingBox: {
       x0: Number,

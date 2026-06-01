@@ -7,6 +7,7 @@ Extracts all images from PDF files and returns clean JSON output
 import sys
 import json
 import os
+import base64
 import traceback
 from pathlib import Path
 import fitz  # PyMuPDF
@@ -96,39 +97,19 @@ def extract_images_from_pdf(pdf_path, output_dir, notebook_id, document_id, user
                                 pix = None
                                 continue
                             
-                            # Generate filename
-                            base_name = os.path.splitext(original_name)[0]
-                            filename = f"{base_name}_page_{page_num + 1}_img_{img_index + 1}.png"
-                            output_path = os.path.join(output_dir, filename)
-                            
-                            # Save image file
+                            # Encode image as base64 for storage in MongoDB (no disk dependency)
                             try:
-                                with open(output_path, "wb") as f:
-                                    f.write(img_data)
+                                image_base64 = base64.b64encode(img_data).decode('utf-8')
                             except Exception:
+                                pix = None
                                 continue
                             
-                            # Calculate relative path for static serving
-                            try:
-                                # The backend serves the uploads/ folder at /uploads
-                                # output_dir is .../uploads/diagrams/{notebookId}
-                                # We need the path relative to the uploads folder itself
-                                # Find the uploads directory (parent of diagrams dir)
-                                uploads_dir = output_dir
-                                while os.path.basename(uploads_dir) != "uploads" and uploads_dir != os.path.dirname(uploads_dir):
-                                    uploads_dir = os.path.dirname(uploads_dir)
-                                
-                                if os.path.basename(uploads_dir) == "uploads":
-                                    relative_path = os.path.relpath(output_path, uploads_dir)
-                                else:
-                                    # Fallback: construct path directly
-                                    relative_path = f"diagrams/{notebook_id}/{filename}"
-                                
-                                relative_path = relative_path.replace("\\", "/")
-                                # Final path: /uploads/diagrams/notebook_id/filename
-                                relative_path = f"/uploads/{relative_path}"
-                            except Exception:
-                                relative_path = f"/uploads/diagrams/{notebook_id}/{filename}"
+                            # Generate a placeholder path (not used for serving)
+                            base_name = os.path.splitext(original_name)[0]
+                            filename = f"{base_name}_page_{page_num + 1}_img_{img_index + 1}.png"
+                            relative_path = f"/uploads/diagrams/{notebook_id}/{filename}"
+                            
+                            # No file system path needed - images stored as base64 in MongoDB
                             
                             # Get image dimensions and position
                             try:
@@ -261,7 +242,7 @@ def extract_images_from_pdf(pdf_path, output_dir, notebook_id, document_id, user
                                 # If text extraction fails, keep the generic heading
                                 pass
                             
-                            # Create image data object
+                            # Create image data object with base64 encoded image
                             image_data = {
                                 "notebookId": notebook_id,
                                 "documentId": document_id,
@@ -269,6 +250,7 @@ def extract_images_from_pdf(pdf_path, output_dir, notebook_id, document_id, user
                                 "heading": derived_heading,
                                 "pageNumber": page_num + 1,
                                 "imagePath": relative_path,
+                                "imageBase64": image_base64,
                                 "boundingBox": {
                                     "x0": float(rect.x0),
                                     "y0": float(rect.y0),

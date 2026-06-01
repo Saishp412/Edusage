@@ -170,7 +170,11 @@ async function processQueryResults(req, res, queryResults, question, notebookId)
       id: img._id?.toString(),
       heading: img.heading,
       pageNumber: img.pageNumber,
-      imageUrl: img.imagePath?.startsWith('http') ? img.imagePath : `${req.protocol}://${req.get('host')}${img.imagePath}`,
+      imageUrl: img.imageData && img.imageData.startsWith('data:') 
+        ? img.imageData  // base64 data URI — works without disk
+        : img.imagePath?.startsWith('http') 
+          ? img.imagePath 
+          : `${req.protocol}://${req.get('host')}${img.imagePath}`,
       imageType: img.imageType,
       confidence: img.confidence,
       relevanceScore: img.relevanceScore
@@ -532,7 +536,11 @@ async function processOriginalQuery(req, res, question, notebookId) {
       id: img._id?.toString(),
       heading: img.heading,
       pageNumber: img.pageNumber,
-      imageUrl: img.imagePath?.startsWith('http') ? img.imagePath : `${req.protocol}://${req.get('host')}${img.imagePath}`,
+      imageUrl: img.imageData && img.imageData.startsWith('data:') 
+        ? img.imageData  // base64 data URI — works without disk
+        : img.imagePath?.startsWith('http') 
+          ? img.imagePath 
+          : `${req.protocol}://${req.get('host')}${img.imagePath}`,
       imageType: img.imageType,
       confidence: img.confidence,
       relevanceScore: img.relevanceScore

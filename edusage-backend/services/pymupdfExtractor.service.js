@@ -28,8 +28,10 @@ class PyMuPDFExtractor {
         console.log(`PyMuPDF extracted ${result.totalImages} images from ${originalName}`);
         return result.images.map(image => ({
           ...image,
-          notebookId // Ensure notebookId is set
-        }));
+          // Build imageData field: use base64 from Python output
+          imageData: image.imageBase64 ? `data:image/png;base64,${image.imageBase64}` : '',
+          notebookId
+        })).map(({ imageBase64, ...rest }) => rest); // strip raw base64, keep data URI
       } else {
         throw new Error(`PyMuPDF extraction failed: ${result.error}`);
       }
@@ -41,7 +43,9 @@ class PyMuPDFExtractor {
 
   async callPythonScript({ filePath, outputDir, notebookId, documentId, userId, originalName }) {
     return new Promise((resolve, reject) => {
-      const pythonProcess = spawn("python", [
+      // Use python3 on Linux (Render), fallback to python on Windows
+      const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+      const pythonProcess = spawn(pythonCmd, [
         this.pythonScript,
         filePath,
         outputDir,
