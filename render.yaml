@@ -14,7 +14,8 @@ services:
   - type: pserv
     name: edusage-chromadb
     env: docker
-    image: chromadb/chroma:latest
+    rootDir: chromadb
+    dockerfilePath: Dockerfile
     plan: starter
     disk:
       name: chromadb-data
