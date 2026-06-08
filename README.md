@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![EduSage Banner](screenshots/banner.png)
+![EduSage Banner](screenshots/Screenshot%20(230).png)
 
 **Turn your study materials into intelligent, conversational knowledge — powered by RAG + OpenAI**
 
@@ -81,14 +81,16 @@ Students today are overwhelmed with dense PDFs, lecture notes, and textbooks tha
 
 | Screen | Preview |
 |---|---|
-| Landing Page | ![Landing Page](screenshots/landing.png) |
-| Dashboard | ![Dashboard](screenshots/dashboard.png) |
-| Notebook View | ![Notebook](screenshots/notebook.png) |
-| AI Chat with Document Context | ![AI Chat](screenshots/ai_chat.png) |
-| Diagram Extraction | ![Diagrams](screenshots/diagrams.png) |
-| Studio — Content Generation | ![Studio](screenshots/studio.png) |
-| Web Search Integration | ![Web Search](screenshots/websearch.png) |
-| Activity Feed | ![Activity](screenshots/activity.png) |
+| Landing Page | ![Landing Page](screenshots/Screenshot%20(231).png) |
+| Login Page | ![Login Page](screenshots/Screenshot%20(232).png) |
+| Dashboard | ![Dashboard](screenshots/Screenshot%20(233).png) |
+| User Notebooks | ![User Notebooks](screenshots/Screenshot%20(235).png) |
+| Question from Uploaded Document | ![Ask Question](screenshots/Screenshot%20(238).png) |
+| Detailed Answer from PDF | ![Detailed Answer](screenshots/Screenshot%20(237).png) |
+| Accuracy Metrics | ![Accuracy Metrics](screenshots/Screenshot%20(239).png) |
+| Diagrams Extraction | ![Diagrams](screenshots/Screenshot%20(240).png) |
+| Notes PDF Download | ![Notes PDF](screenshots/Screenshot%20(241).png) |
+| Detailed Notes Overview | ![Detailed Notes](screenshots/Screenshot%20(242).png) |
 
 ---
 
