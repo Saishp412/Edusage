@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![EduSage Banner](screenshots/Screenshot%20(230).png)
+![EduSage Banner](Screenshots/Screenshot%20(230).png)
 
 **Turn your study materials into intelligent, conversational knowledge — powered by RAG + OpenAI**
 
@@ -81,16 +81,16 @@ Students today are overwhelmed with dense PDFs, lecture notes, and textbooks tha
 
 | Screen | Preview |
 |---|---|
-| Landing Page | ![Landing Page](screenshots/Screenshot%20(231).png) |
-| Login Page | ![Login Page](screenshots/Screenshot%20(232).png) |
-| Dashboard | ![Dashboard](screenshots/Screenshot%20(233).png) |
-| User Notebooks | ![User Notebooks](screenshots/Screenshot%20(235).png) |
-| Question from Uploaded Document | ![Ask Question](screenshots/Screenshot%20(238).png) |
-| Detailed Answer from PDF | ![Detailed Answer](screenshots/Screenshot%20(237).png) |
-| Accuracy Metrics | ![Accuracy Metrics](screenshots/Screenshot%20(239).png) |
-| Diagrams Extraction | ![Diagrams](screenshots/Screenshot%20(240).png) |
-| Notes PDF Download | ![Notes PDF](screenshots/Screenshot%20(241).png) |
-| Detailed Notes Overview | ![Detailed Notes](screenshots/Screenshot%20(242).png) |
+| Landing Page | ![Landing Page](Screenshots/Screenshot%20(231).png) |
+| Login Page | ![Login Page](Screenshots/Screenshot%20(232).png) |
+| Dashboard | ![Dashboard](Screenshots/Screenshot%20(233).png) |
+| User Notebooks | ![User Notebooks](Screenshots/Screenshot%20(235).png) |
+| Question from Uploaded Document | ![Ask Question](Screenshots/Screenshot%20(238).png) |
+| Detailed Answer from PDF | ![Detailed Answer](Screenshots/Screenshot%20(237).png) |
+| Accuracy Metrics | ![Accuracy Metrics](Screenshots/Screenshot%20(239).png) |
+| Diagrams Extraction | ![Diagrams](Screenshots/Screenshot%20(240).png) |
+| Notes PDF Download | ![Notes PDF](Screenshots/Screenshot%20(241).png) |
+| Detailed Notes Overview | ![Detailed Notes](Screenshots/Screenshot%20(242).png) |
 
 ---
 
